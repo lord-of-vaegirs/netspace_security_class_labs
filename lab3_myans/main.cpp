@@ -10,28 +10,24 @@ using namespace std;
 #define CODESIZE 10000000
 
 void charToBit(char *s, int *text, unsigned long long count) // 字符串转二进制
-{ 
-    char *tmp = static_cast<char *>(malloc(sizeof(char) * count));
-    for (unsigned long long i = 0; i < count; i++)
-        tmp[i] = s[i];
+{
     for (unsigned long long i = 0; i < count; i++)
     {
-        for (int j = 7; j >= 0; j--)
+        for (int j = 0; j < 8; j++)
         {
-            text[i * 8 + static_cast<unsigned long long>(j)] = tmp[i] & 1;
-            tmp[i] = tmp[i] >> 1;
+            text[i * 8 + j] = (s[i] >> j) & 1; // 从低位到高位存储
         }
     }
 }
 
 void bitToChar(int *text, char *s, unsigned long long count) // 二进制转字符串
-{ 
+{
     for (unsigned long long i = 0; i < count; i++)
     {
+        s[i] = 0; // 确保初始值为 0
         for (int j = 0; j < 8; j++)
         {
-            s[i] = static_cast<char>(s[i] << 1);
-            s[i] = static_cast<char>(s[i] | text[i * 8 + static_cast<unsigned long long>(j)]);
+            s[i] |= (text[i * 8 + j] << j); // 从低位到高位还原
         }
     }
 }
@@ -59,7 +55,7 @@ unsigned long long bitToInt(int *text) // 二进制转整型
 
 bool isBigEnough(int ziplen,int bmplen)
 {
-    // 待实现
+    // 已实现
     if(bmplen>=ziplen)
     {
         return 1;
@@ -72,19 +68,19 @@ bool isBigEnough(int ziplen,int bmplen)
 
 void embedMessage(int* l,int* f,int len)
 {
-    // 待实现
+    // 已实现
     for(int i=0;i<len;i++)
     {
-        l[i*8]=f[i];
+        l[i]=f[i]|(l[i]&0xFE);
     }
 }
 
 void extractMessage(int* r,int* f,int len)
 {
-    // 待实现
+    // 已实现
     for(int i=0;i<len;i++)
     {
-        f[i]=r[i*8];
+        f[i]=r[i]&1;
     }
 }
 
@@ -130,7 +126,7 @@ int main()
         int *buf3=static_cast<int *>(malloc(sizeof(int) * count * 8));
         charToBit(s,buf3,count);
         embedMessage(buf2,buf3,count*8);
-        
+        cout<<"count: "<<count<<endl;
         bitToChar(buf2, buf1, size); //buf2是从隐写后的图片RGB信息，转换为char形式存在buf1中输出文件，也可以自己更换变量或代码逻辑
         fwrite(&bmph, sizeof(BITMAPFILEHEADER), 1, fout);
         fwrite(&bmpf, sizeof(BITMAPINFOHEADER), 1, fout);
@@ -147,43 +143,27 @@ int main()
     {
         FILE *fin = fopen("secret.bmp", "rb");
         FILE *fout = fopen("ans.zip", "wb");
-        
+        unsigned long long l=0;
+        cout<<"please input the size of the zip"<<endl;
+        cin>>l;
+        int* plain=static_cast<int*>(malloc(sizeof(int)*l*8));
+        char* plainText=static_cast<char*>(malloc(sizeof(char)*l));
         BITMAPFILEHEADER bmph;                                                // BMP文件头
         BITMAPINFOHEADER bmpf;                                                // BMP文件信息头
         fread(&bmph, sizeof(BITMAPFILEHEADER), 1, fin);                       // 读取BMP文件头
-        fread(&bmpf, sizeof(BITMAPINFOHEADER), 1, fin);                       // 读取BMP信息头
-        long w = bmpf.biWidth;                                                // 图像的横向像素点个数
-        long h = bmpf.biHeight;                                               // 图像的纵向像素点个数
-        unsigned long long size = static_cast<unsigned long long>(w * h * 3); // 图像RGB信息的字节大小
+        fread(&bmpf, sizeof(BITMAPINFOHEADER), 1, fin);                       // 读取BMP文件信息头
         fseek(fin, static_cast<long>(sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER)), 0); // 文件指针移动至RGB信息的开头
-        unsigned long long count=size;
-        if(size%8!=0)
-        {
-            count+=(8-size%8);
-        }
-        char* s=static_cast<char *>(malloc(sizeof(char) * count));
-        int* rawplain=static_cast<int *>(malloc(sizeof(int) * count * 8));
-        fread(s, sizeof(char), size, fin);
-        if(size%8!=0)
-        {
-            for(int i=size;i<count;i++)
-            {
-                s[i]='0';
-            }
-        }
-        charToBit(s,rawplain,count);
-        unsigned long long l=count/8;
-        int* plain=static_cast<int*>(malloc(sizeof(int)*l*8));
-        char* plainText=static_cast<char*>(malloc(sizeof(char)*l));
-        
-        extractMessage(rawplain,plain,size);
-
+        char* tmp=static_cast<char *>(malloc(sizeof(char) * l*8)); 
+        int* tmpbits=static_cast<int *>(malloc(sizeof(int) * l*8 * 8));
+        fread(tmp,sizeof(char),l*8,fin);
+        charToBit(tmp,tmpbits,l*8);
+        extractMessage(tmpbits,plain,l*8);
         bitToChar(plain, plainText, l); //plain是从BMP中抽取出的信息的二进制形式，也可以自己更换变量或代码逻辑
         fwrite(plainText, sizeof(char), l, fout); // 输出RAR信息
         free(plain);
         free(plainText);
-        free(s);
-        free(rawplain);
+        free(tmp);
+        free(tmpbits);
         fclose(fin);
         fclose(fout);
         cout << "Bingo!" << endl;
